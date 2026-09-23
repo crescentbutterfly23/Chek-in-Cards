@@ -1,0 +1,10 @@
+﻿First Name,Last Name,Email,Ticket #,Check-in Link
+Agent1,Last1,a1@example.com,E1001,https://checkin.ascendexpo.com/t/E1001?token=ab1cd&evt=2026
+Agent2,"Smith, Jr.",a2@example.com,E1002,https://checkin.ascendexpo.com/t/E1002?token=ab2cd&evt=2026
+Agent3,Last3,a3@example.com,E1003,https://checkin.ascendexpo.com/t/E1003?token=ab3cd&evt=2026
+,,,,
+Agent4,Last4,a4@example.com,E1004,https://checkin.ascendexpo.com/t/E1004?token=ab4cd&evt=2026
+Agent5,Last5,a5@example.com,E1005,https://checkin.ascendexpo.com/t/E1005?token=ab5cd&evt=2026
+Agent6,Last6,a6@example.com,E1006,https://checkin.ascendexpo.com/t/E1006?token=ab6cd&evt=2026
+Agent7,Last7,a7@example.com,E1007,https://checkin.ascendexpo.com/t/E1007?token=ab7cd&evt=2026
+Agent8,Last8,a8@example.com,E1008,

@@ -1,0 +1,14 @@
+# Real ticket lists hold live check-in links. This repo is public, so keep them out of it.
+# Only the blank template and the fake example in templates/ are tracked.
+*.csv
+*.tsv
+*.xlsx
+!templates/*.csv
+
+# Printed runs and QR image exports
+*.pdf
+!samples/*.pdf
+qr-images/
+
+.DS_Store
+__pycache__/

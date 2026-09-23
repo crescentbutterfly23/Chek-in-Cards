@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ASCEND Check-in Cards</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+@font-face { font-family: "Inter"; font-weight: 400; src: url(data:font/woff2;base64,{{inter-latin-400-normal.woff2}}) format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; src: url(data:font/woff2;base64,{{inter-latin-600-normal.woff2}}) format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 700; src: url(data:font/woff2;base64,{{inter-latin-700-normal.woff2}}) format("woff2"); }
+@font-face { font-family: "Bebas Neue"; font-weight: 400; src: url(data:font/woff2;base64,{{bebas-neue-latin-400-normal.woff2}}) format("woff2"); }
+
+:root {
+  --bg: #eef0f3; --panel: #ffffff; --ink: #0b1220; --muted: #5b6474; --line: #d7dbe2;
+  --accent: #0a7cff; --warn: #b42318; --warn-bg: #fef3f2; --ok: #067647;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 "Inter", system-ui, sans-serif; }
+
+/* ---------- controls ---------- */
+.app { display: grid; grid-template-columns: 360px 1fr; min-height: 100vh; }
+aside { background: var(--panel); border-right: 1px solid var(--line); padding: 20px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+h1 { font-size: 17px; margin: 0 0 2px; }
+.sub { color: var(--muted); margin: 0 0 18px; font-size: 13px; }
+fieldset { border: 0; padding: 0; margin: 0 0 18px; }
+legend { font-weight: 600; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg label { text-align: center; padding: 9px 6px; cursor: pointer; font-weight: 600; font-size: 13px; }
+.seg input { display: none; }
+.seg label:has(input:checked) { background: var(--ink); color: #fff; }
+textarea, select, input[type=text], input[type=number] { width: 100%; font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; color: var(--ink); }
+textarea { min-height: 170px; font: 12.5px/1.5 ui-monospace, Menlo, monospace; resize: vertical; }
+.row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.row label, .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.field { margin-top: 8px; }
+.hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+.hint code { background: #f2f4f7; padding: 0 4px; border-radius: 4px; }
+button { font: inherit; font-weight: 600; border-radius: 8px; padding: 9px 12px; cursor: pointer; border: 1px solid var(--line); background: #fff; color: var(--ink); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; width: 100%; padding: 12px; font-size: 15px; }
+.btns { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.file { display: block; border: 1px dashed var(--line); border-radius: 8px; padding: 10px; text-align: center; cursor: pointer; color: var(--muted); font-size: 13px; }
+.file input { display: none; }
+.status { font-size: 13px; margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: #f2f4f7; }
+.status.bad { background: var(--warn-bg); color: var(--warn); }
+.status ul { margin: 4px 0 0; padding-left: 18px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin-top: 6px; }
+
+main { padding: 24px; overflow: auto; }
+.preview { zoom: var(--zoom, .62); display: flex; flex-direction: column; align-items: center; gap: .4in; }
+.empty { color: var(--muted); text-align: center; margin-top: 20vh; }
+
+/* ---------- the printed page ---------- */
+/* Avery 5392: Letter portrait, 2 x 3 cells of 4in x 3in, edge to edge (perforated),
+   0.25in side margins and 1in top/bottom. Each 3x4in card is rotated 90deg into its cell. */
+.page {
+  width: 8.5in; height: 11in; background: #fff; box-shadow: 0 2px 14px rgba(16,24,40,.18);
+  position: relative; overflow: hidden;
+  break-after: page; page-break-after: always;
+}
+.page:last-child { break-after: auto; page-break-after: auto; }
+.card { position: absolute; width: 3in; height: 4in; display: block; overflow: visible; }
+.page.landscape { width: 11in; height: 8.5in; }
+.orient { position: fixed; right: 20px; bottom: 20px; z-index: 10; display: flex; align-items: center; gap: 4px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 5px; box-shadow: 0 6px 20px rgba(16,24,40,.16); }
+.orient-label { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 0 6px 0 8px; }
+.orient button { display: flex; align-items: center; gap: 7px; border: 0; background: transparent; padding: 8px 12px; border-radius: 8px; color: var(--muted); }
+.orient button:hover { color: var(--ink); background: #f2f4f7; }
+.orient button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+/* the physical Avery sheet; turned as a whole for landscape pages so the cards read upright */
+.sheet { position: absolute; left: 0; top: 0; width: 8.5in; height: 11in; transform-origin: 0 0; }
+.marks { position: absolute; inset: 0; width: 8.5in; height: 11in; pointer-events: none; z-index: 2; }
+
+
+@media print {
+  html, body { background: #fff; }
+  .app { display: block; }
+  aside, .noprint { display: none !important; }
+  main { padding: 0; overflow: visible; }
+  .preview { zoom: 1; gap: 0; display: block; }
+  .page { box-shadow: none; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+<style id="pageSize">@page { size: 11in 8.5in; margin: 0; }</style>
+</head>
+<body>
+
+<!-- Shared gradients/filters for every card. Kept rendered (0x0) because
+     display:none defs stop gradients from painting in some browsers. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="navy" gradientUnits="userSpaceOnUse" gradientTransform="matrix(288 0 0 384 0 0)" x1="0.33" y1="0" x2="0.67" y2="1"><stop offset="0" stop-color="#0D1A2E"/><stop offset="0.55" stop-color="#0B1220"/><stop offset="1" stop-color="#05080F"/></linearGradient>
+    <radialGradient id="glowBlue" cx="288" cy="0" r="260" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#0092FF" stop-opacity="0.28"/><stop offset="1" stop-color="#0092FF" stop-opacity="0"/></radialGradient>
+    <radialGradient id="glowGreen" cx="0" cy="384" r="240" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#00FF91" stop-opacity="0.18"/><stop offset="1" stop-color="#00FF91" stop-opacity="0"/></radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00FF91"/><stop offset="1" stop-color="#0092FF"/></linearGradient>
+    <linearGradient id="accentH" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#00FF91"/><stop offset="1" stop-color="#0092FF"/></linearGradient>
+    <pattern id="dots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="4.9" cy="4.9" r="0.95" fill="#FFFFFF" fill-opacity="0.07"/></pattern>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="4" stdDeviation="7.5" flood-color="#0092FF" flood-opacity="0.4"/></filter>
+  </defs>
+</svg>
+
+<div class="app">
+  <aside>
+    <h1>ASCEND Check-in Cards</h1>
+    <p class="sub">For Avery 5392 name badge inserts: 6 per sheet.</p>
+
+    <fieldset>
+      <legend>Design</legend>
+      <div class="seg">
+        <label><input type="radio" name="design" value="color" checked> Full color</label>
+        <label><input type="radio" name="design" value="print"> Black &amp; white</label>
+      </div>
+      <p class="hint">Black &amp; white keeps the logo badge in color but drops the dark background, which is where most of the ink goes.</p>
+      <label class="check"><input type="checkbox" id="bwBadge"> Make the B&amp;W badge grayscale too</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Tickets</legend>
+      <textarea id="list" spellcheck="false" placeholder="E1001&#10;E1002, https://checkin.example.com/E1002&#10;E1003"></textarea>
+      <p class="hint">One ticket per line: <code>ticket number</code> or <code>ticket number, QR content</code>. Lines without QR content use the rule below. You can paste two columns straight from a spreadsheet.</p>
+      <div class="field">
+        <label for="qrRule">QR content when a line has none (<code>{id}</code> = ticket number)</label>
+        <input type="text" id="qrRule" value="{id}">
+      </div>
+      <div class="btns">
+        <label class="file" style="flex:1">Load CSV / TXT<input type="file" id="csvFile" accept=".csv,.txt,.tsv,text/csv,text/plain"></label>
+        <label class="file" style="flex:1">Use QR images<input type="file" id="qrFiles" accept="image/*" multiple></label>
+      </div>
+      <div id="mapBox" hidden style="margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:8px">
+        <div id="mapNote" class="hint" style="margin:0 0 8px"></div>
+        <div class="field" style="margin-top:0"><label for="colId">Ticket number column</label><select id="colId"></select></div>
+        <div class="field"><label for="colQr">QR link column</label><select id="colQr"></select></div>
+      </div>
+      <p class="hint">CSV: any export with a ticket-number column and a link column. The tool finds both columns (other columns are ignored), and each card's QR code opens that row's link.</p>
+      <p class="hint">QR images: if your check-in system gives you one QR picture per ticket, name each file by its ticket number (<code>E1004.png</code>). A matching image is used instead of a generated code.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Or fill a number range</legend>
+      <div class="row">
+        <div><label for="rPrefix">Prefix</label><input type="text" id="rPrefix" value="E"></div>
+        <div><label for="rStart">From</label><input type="number" id="rStart" value="1001"></div>
+        <div><label for="rEnd">To</label><input type="number" id="rEnd" value="1012"></div>
+      </div>
+      <div class="btns"><button id="fillRange" type="button">Replace list with range</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Sheet: Avery 5392</legend>
+      <p class="hint" style="margin:0 0 8px">6 per sheet, 2 across × 3 down. Each insert is 4in wide × 3in tall, and the card design is turned sideways to fill it.</p>
+      <div class="field" style="margin-top:0">
+        <label for="rotate">Top of the card faces</label>
+        <select id="rotate">
+          <option value="left" selected>Left edge of the sheet</option>
+          <option value="right">Right edge of the sheet</option>
+        </select>
+      </div>
+      <div class="row" style="grid-template-columns:1fr 1fr;margin-top:8px">
+        <div><label for="nudgeX">Nudge right (in)</label><input type="number" id="nudgeX" value="0" min="-0.25" max="0.25" step="0.01"></div>
+        <div><label for="nudgeY">Nudge down (in)</label><input type="number" id="nudgeY" value="0" min="-0.25" max="0.25" step="0.01"></div>
+      </div>
+      <p class="hint">After a test print on Avery stock, use the nudge to line the print up with the perforations if your printer feeds a little off. Directions are on the sheet held portrait, as it feeds. Negative numbers move it left or up.</p>
+      <label class="check"><input type="checkbox" id="blankFill"> Fill the last page with blank-number cards</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Edges</legend>
+      <label class="check"><input type="checkbox" id="bleed" checked> Bleed, 0.125in (full color)</label>
+      <p class="hint" style="margin:0 0 4px 24px">Runs the dark background 0.125in past the sheet's outer edges. The inserts share their inner edges at the perforations, so they need no bleed there.</p>
+      <label class="check"><input type="checkbox" id="outline"> Card outline</label>
+      <p class="hint" style="margin:0 0 4px 24px">The thin border from the design. Off by default: on perforated stock a line that lands slightly off the perforation shows.</p>
+      <label class="check"><input type="checkbox" id="cropMarks"> Crop marks</label>
+      <p class="hint" style="margin:0 0 0 24px">Only needed for plain paper you cut yourself. Avery 5392 separates at the perforations.</p>
+    </fieldset>
+
+    <button class="primary" id="printBtn" type="button">Print / Save as PDF</button>
+    <button id="testBtn" type="button" style="width:100%;margin-top:8px">Print alignment test sheet</button>
+    <p class="hint">Print this on one Avery sheet before the full run. Each insert gets a line 1/8in inside its perforations, and two rulers must measure exactly 8in and 9in. If the gaps are uneven or the rulers come up short, the printer is scaling the page: set Scale to 100% / Actual size and turn off "Fit to page". An even shift in one direction is what the nudge fixes.</p>
+    <p class="hint">In the print dialog: <b>Letter, <span id="orientWord">landscape</span></b>, <b>Margins: None</b>, <b>Scale: 100%</b> (or "Actual size"), and turn on <b>Background graphics</b>. Test one sheet on Avery 5392 stock before the full run.</p>
+    <div id="status" class="status">Add ticket numbers to start.</div>
+  </aside>
+
+  <main>
+    <div id="preview" class="preview"></div>
+    <div class="orient noprint" role="group" aria-label="Page orientation">
+      <input type="hidden" id="orient" value="landscape">
+      <span class="orient-label">Page</span>
+      <button type="button" data-orient="landscape" title="Turns the whole sheet sideways so every card reads upright on screen and in the PDF. The printer turns it back onto the portrait stock; the sheet is symmetrical, so it lands on the perforations either way.">
+        <svg viewBox="0 0 22 16" width="20" height="15" aria-hidden="true"><rect x="1" y="1" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>Landscape</button>
+      <button type="button" data-orient="portrait" title="Shows the sheet exactly as it goes through the printer, so the cards appear sideways.">
+        <svg viewBox="0 0 16 22" width="13" height="18" aria-hidden="true"><rect x="1" y="1" width="14" height="20" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>Portrait</button>
+    </div>
+  </main>
+</div>
+
+<script>{{qrcode.js}}</script>
+<script>
+const EXPO_LOCKUP = "data:image/png;base64,{{expo-lockup.png}}";
+const BADGE = "data:image/png;base64,{{ascend-badge.png}}";
+const SVGNS = "http://www.w3.org/2000/svg";
+const CARDS_PER_PAGE = 6;
+// Avery 5392 sheet geometry, inches: 2 x 3 cells of 4 x 3, edge to edge, centred on Letter portrait
+const SHEET = { left: 0.25, top: 1, cellW: 4, cellH: 3 };
+
+const $ = (id) => document.getElementById(id);
+let denseQR = [];
+const qrImages = new Map();   // ticket number (upper-case) -> data URL
+
+// ---------- input parsing ----------
+function parseList(text) {
+  const rule = $("qrRule").value || "{id}";
+  const rows = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    // tab (spreadsheet paste), comma, or semicolon; only split once so URLs keep their commas
+    const m = line.match(/^([^\t,;]+)[\t,;](.*)$/);
+    let id = (m ? m[1] : line).trim().replace(/^"|"$/g, "");
+    let qr = m ? m[2].trim().replace(/^"|"$/g, "") : "";
+    if (!id) continue;
+    // skip a header row like "ticket,qr"
+    if (rows.length === 0 && /^(ticket|id|number|attendee)/i.test(id) && /qr|url|code|link/i.test(qr)) continue;
+    const img = qrImages.get(id.toUpperCase());
+    rows.push({ id, qr: qr || rule.replaceAll("{id}", id), img });
+  }
+  return rows;
+}
+
+// ---------- QR ----------
+function qrMatrix(text) {
+  const utf8 = unescape(encodeURIComponent(text));   // byte mode, UTF-8 safe
+  const q = qrcode(0, "M");
+  q.addData(utf8, "Byte");
+  q.make();
+  const n = q.getModuleCount();
+  let d = "";
+  for (let r = 0; r < n; r++) {
+    let c = 0;
+    while (c < n) {
+      if (q.isDark(r, c)) {
+        let run = 1;
+        while (c + run < n && q.isDark(r, c + run)) run++;
+        d += `M${c},${r}h${run}v1h-${run}z`;
+        c += run;
+      } else c++;
+    }
+  }
+  return { n, d };
+}
+
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+// Draws the QR (generated or supplied image) into a square box.
+function drawQR(svg, row, x, y, size) {
+  if (row.img) {
+    el("image", { href: row.img, x, y, width: size, height: size, preserveAspectRatio: "xMidYMid meet", style: "image-rendering:pixelated" }, svg);
+    return;
+  }
+  if (!row.qr) return;
+  const { n, d } = qrMatrix(row.qr);
+  if (n > 57) denseQR.push(row.id);   // past version 10 the squares get small for phone cameras
+  const g = el("g", { transform: `translate(${x} ${y}) scale(${size / n})` }, svg);
+  el("path", { d, fill: "#000000", "shape-rendering": "crispEdges" }, g);
+}
+
+// Shrinks the ticket number only if a long one would run past the card.
+function fitId(text, maxWidth) {
+  requestAnimationFrame(() => {
+    try {
+      const w = text.getComputedTextLength();
+      if (w > maxWidth) text.setAttribute("font-size", (42.67 * maxWidth / w).toFixed(2));
+    } catch (e) {}
+  });
+}
+
+// ---------- the two designs (card units are 1/96in: 288 x 384 = 3in x 4in, positions measured from the template) ----------
+// bleed = extra background past each trim edge, in card units (1/96in): { t, r, b, l }
+function colorCard(row, bleed) {
+  const svg = el("svg", { class: "card", viewBox: "0 0 288 384", width: "3in", height: "4in" });
+  const B = bleed || { t: 0, r: 0, b: 0, l: 0 };
+  const bg = { x: -B.l, y: -B.t, width: 288 + B.l + B.r, height: 384 + B.t + B.b };
+  for (const fill of ["url(#navy)", "url(#glowBlue)", "url(#glowGreen)", "url(#dots)"]) el("rect", { ...bg, fill }, svg);
+  el("image", { href: EXPO_LOCKUP, x: 41, y: 27, width: 207, height: 35 }, svg);
+  txt(svg, { x: 40.6, y: 74.2, "font-family": "Inter", "font-weight": 600, "font-size": 8.67, "letter-spacing": 1.56, fill: "#00FF91" }, "OCT 6–8, 2026");
+  txt(svg, { x: 131.6, y: 74.2, "font-family": "Inter", "font-weight": 600, "font-size": 8.67, "letter-spacing": 1.56, fill: "#F5F3EE", "fill-opacity": 0.75 }, "RP FUNDING CENTER");
+  el("rect", { x: 72, y: 87.3, width: 144, height: 144, rx: 10, fill: "#FFFFFF", stroke: "#00FF91", "stroke-opacity": 0.5, "stroke-width": 1, filter: "url(#glow)" }, svg);
+  drawQR(svg, row, 78.7, 94, 130.6);
+  if (row.id) fitId(txt(svg, { x: 144, y: 271, "text-anchor": "middle", "font-family": "Bebas Neue", "font-size": 42.67, "letter-spacing": 0.85, fill: "url(#accent)" }, row.id), 250);
+  txt(svg, { x: 135.5, y: 294.2, "text-anchor": "middle", "font-family": "Inter", "font-size": 10.67, fill: "#F5F3EE" }, "Scan to check in");
+  txt(svg, { x: 183.4, y: 294, "font-family": "Inter", "font-size": 10.67, fill: "#00FF91" }, "→");
+  el("rect", { x: 29.3, y: 307.7, width: 229.4, height: 47, rx: 8, fill: "#FFFFFF", stroke: "#00FF91", "stroke-opacity": 0.5, "stroke-width": 1, filter: "url(#glow)" }, svg);
+  txt(svg, { x: 39.4, y: 343, "font-family": "Inter", "font-weight": 700, "font-size": 10, "letter-spacing": 2, fill: "#0B1220" }, "NAME");
+  el("rect", { x: 85.1, y: 344.6, width: 164.6, height: 1.5, fill: "url(#accentH)" }, svg);
+  cutLine(svg);
+  return svg;
+}
+
+function printCard(row) {
+  const svg = el("svg", { class: "card", viewBox: "0 0 288 384", width: "3in", height: "4in" });
+  el("rect", { width: 288, height: 384, fill: "#FFFFFF" }, svg);
+  const badge = el("image", { href: BADGE, x: 74, y: 29, width: 44, height: 55 }, svg);
+  if ($("bwBadge").checked) badge.setAttribute("style", "filter:grayscale(1)");
+  const line = txt(svg, { "font-family": "Inter", "font-weight": 600, "font-size": 9.33, "letter-spacing": 1.3, fill: "#0B1220" });
+  el("tspan", { x: 128.1, y: 52.95 }, line).textContent = "AGENT EXPO";
+  el("tspan", { x: 128.1, y: 66.05 }, line).textContent = "OCT 6–8, 2026";
+  drawQR(svg, row, 72, 90.2, 144);
+  if (row.id) fitId(txt(svg, { x: 144, y: 273, "text-anchor": "middle", "font-family": "Bebas Neue", "font-size": 42.67, "letter-spacing": 0.85, fill: "#000000" }, row.id), 260);
+  txt(svg, { x: 144, y: 297, "text-anchor": "middle", "font-family": "Inter", "font-size": 11.33, fill: "#333333" }, "Scan to check in");
+  txt(svg, { x: 29.8, y: 349, "font-family": "Inter", "font-weight": 600, "font-size": 12, fill: "#000000" }, "Name");
+  el("rect", { x: 70.9, y: 350.3, width: 187.4, height: 1.5, fill: "#000000" }, svg);
+  cutLine(svg);
+  return svg;
+}
+
+function txt(svg, attrs, content) {
+  const t = el("text", attrs, svg);
+  if (content != null) t.textContent = content;
+  return t;
+}
+function cutLine(svg) {
+  if (!$("outline").checked) return;
+  el("rect", { x: 0.33, y: 0.33, width: 287.33, height: 383.33, fill: "none", stroke: "#000000", "stroke-width": 0.67 }, svg);
+}
+
+// ---------- crop marks (page coordinates in inches) ----------
+// Each mark is a thin black line over a wider white one, so it shows on white paper and on the dark bleed.
+function cropMarks(nx, ny) {
+  const svg = el("svg", { class: "marks", viewBox: "0 0 8.5 11" });
+  const off = 1 / 16, edge = 1 / 8;                     // clear of the card, and of the paper edge
+  const xs = [0, 1, 2].map(c => SHEET.left + c * SHEET.cellW + nx);
+  const ys = [0, 1, 2, 3].map(r => SHEET.top + r * SHEET.cellH + ny);
+  const segs = [];
+  for (const x of xs) segs.push([x, edge, x, ys[0] - off], [x, ys[3] + off, x, 11 - edge]);
+  for (const y of ys) segs.push([edge, y, xs[0] - off, y], [xs[2] + off, y, 8.5 - edge, y]);
+  const d = segs.filter(([x1, y1, x2, y2]) => Math.hypot(x2 - x1, y2 - y1) > 0.04).map(([a, b, c, e]) => `M${a},${b}L${c},${e}`).join("");
+  el("path", { d, stroke: "#FFFFFF", "stroke-width": 1.75 / 72, fill: "none" }, svg);
+  el("path", { d, stroke: "#000000", "stroke-width": 0.5 / 72, fill: "none" }, svg);
+  return svg;
+}
+
+// ---------- alignment test sheet (sheet coordinates in inches, portrait) ----------
+function testSheet(nx, ny) {
+  const svg = el("svg", { class: "marks", viewBox: "0 0 8.5 11" });
+  const g = el("g", { transform: `translate(${nx} ${ny})`, fill: "none", stroke: "#000", "stroke-width": 0.75 / 72 }, svg);
+  const ins = 1 / 8;
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++) {
+    const x = SHEET.left + c * SHEET.cellW, y = SHEET.top + r * SHEET.cellH;
+    el("rect", { x: x + ins, y: y + ins, width: SHEET.cellW - 2 * ins, height: SHEET.cellH - 2 * ins }, g);
+    const label = el("text", { x: x + SHEET.cellW / 2, y: y + 0.45, "text-anchor": "middle", "font-family": "Inter", "font-size": 0.12, fill: "#000", stroke: "none" }, g);
+    label.textContent = `Insert ${r * 2 + c + 1}: even 1/8 in gap to the perforation all round`;
+  }
+  // rulers with 1in ticks: across the sheet (8in) and down it (9in)
+  const rule = (x1, y1, x2, y2, n, text, tx, ty, rot) => {
+    el("path", { d: `M${x1},${y1}L${x2},${y2}`, "stroke-width": 1.5 / 72 }, g);
+    for (let i = 0; i <= n; i++) {
+      const f = i / n, px = x1 + (x2 - x1) * f, py = y1 + (y2 - y1) * f;
+      el("path", { d: x1 === x2 ? `M${px - 0.08},${py}L${px + 0.08},${py}` : `M${px},${py - 0.08}L${px},${py + 0.08}` }, g);
+    }
+    const t = el("text", { x: tx, y: ty, "text-anchor": "middle", "font-family": "Inter", "font-weight": 600, "font-size": 0.15, fill: "#000", stroke: "none", transform: rot ? `rotate(${rot} ${tx} ${ty})` : "" }, g);
+    t.textContent = text;
+  };
+  rule(0.25, 5.5, 8.25, 5.5, 8, "Should measure exactly 8 in", 2.25, 5.35);
+  rule(4.25, 1, 4.25, 10, 9, "Should measure exactly 9 in", 4.1, 8.5, -90);
+  return svg;
+}
+
+// ---------- render ----------
+function render() {
+  const design = document.querySelector("input[name=design]:checked").value;
+  const rows = parseList($("list").value);
+  const clampNudge = (id) => Math.min(0.25, Math.max(-0.25, parseFloat($(id).value) || 0));
+  const nx = clampNudge("nudgeX"), ny = clampNudge("nudgeY");
+  const topLeft = $("rotate").value === "left";
+
+  const preview = $("preview");
+  preview.textContent = "";
+  const status = $("status");
+
+  if (!rows.length && !testMode) {
+    preview.innerHTML = '<p class="empty">Add ticket numbers on the left to see the pages.</p>';
+    status.className = "status";
+    status.textContent = "Add ticket numbers to start.";
+    return;
+  }
+
+  const cards = testMode ? [] : rows.slice();
+  if ($("blankFill").checked) while (cards.length % CARDS_PER_PAGE) cards.push({ id: "", qr: "" });
+
+  const problems = [];
+  denseQR = [];
+  const seen = new Map();
+  rows.forEach((r, i) => {
+    const key = r.id.toUpperCase();
+    if (seen.has(key)) problems.push(`${r.id} is listed twice (lines ${seen.get(key)} and ${i + 1})`);
+    else seen.set(key, i + 1);
+  });
+
+  const make = design === "color" ? colorCard : printCard;
+  const land = $("orient").value === "landscape";
+  $("pageSize").textContent = `@page { size: ${land ? "11in 8.5in" : "8.5in 11in"}; margin: 0; }`;
+  $("orientWord").textContent = land ? "landscape" : "portrait";
+  document.querySelectorAll(".orient button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.orient === $("orient").value)));
+  // Turn the sheet so the card tops point up: cards facing the sheet's left edge need a clockwise turn.
+  const sheetTurn = !land ? "" : topLeft ? "translateX(11in) rotate(90deg)" : "translateY(8.5in) rotate(-90deg)";
+  // Which sheet slot (0-5, portrait: 2 across x 3 down) the k-th card goes in, so cards run
+  // left to right, top to bottom as the page is viewed.
+  const slotFor = (k) => {
+    if (!land) return k;
+    const lr = Math.floor(k / 3), lc = k % 3;            // row/column on the landscape page (2 x 3)
+    const [c, r] = topLeft ? [lr, 2 - lc] : [1 - lr, lc];
+    return r * 2 + c;
+  };
+  const useBleed = design === "color" && $("bleed").checked;
+  // Bleed only on the sheet's outer edges; inner edges meet at the perforations.
+  // The card is rotated, so each card edge lands on a different side of its cell.
+  const bleedFor = (slot) => {
+    if (!useBleed) return null;
+    const c = slot % 2, r = Math.floor(slot / 2), b = (outer) => (outer ? 12 : 0);   // 12 units = 0.125in
+    const L = c === 0, R = c === 1, T = r === 0, Bm = r === 2;
+    return topLeft ? { t: b(L), r: b(T), b: b(R), l: b(Bm) }     // card top -> cell left (turned 90deg counter-clockwise)
+                   : { t: b(R), r: b(Bm), b: b(L), l: b(T) };    // card top -> cell right (clockwise)
+  };
+  const place = (svg, slot) => {
+    const c = slot % 2, r = Math.floor(slot / 2);
+    // centre the 3x4in card on its 4x3in cell, then turn it
+    svg.style.left = (SHEET.left + c * SHEET.cellW + (SHEET.cellW - 3) / 2 + nx) + "in";
+    svg.style.top = (SHEET.top + r * SHEET.cellH + (SHEET.cellH - 4) / 2 + ny) + "in";
+    svg.style.transform = `rotate(${topLeft ? -90 : 90}deg)`;
+    return svg;
+  };
+  let page;
+  if (testMode) {
+    const pg = document.createElement("div"); pg.className = land ? "page landscape" : "page"; preview.appendChild(pg);
+    page = document.createElement("div"); page.className = "sheet"; page.style.transform = sheetTurn; pg.appendChild(page);
+    page.appendChild(testSheet(nx, ny));
+    status.className = "status"; status.textContent = "Alignment test sheet";
+    return;
+  }
+  cards.forEach((row, i) => {
+    if (i % CARDS_PER_PAGE === 0) {
+      const pg = document.createElement("div"); pg.className = land ? "page landscape" : "page"; preview.appendChild(pg);
+      page = document.createElement("div"); page.className = "sheet"; page.style.transform = sheetTurn; pg.appendChild(page);
+      if ($("cropMarks").checked) page.appendChild(cropMarks(nx, ny));
+    }
+    const slot = slotFor(i % CARDS_PER_PAGE);
+    try { page.appendChild(place(make(row, bleedFor(slot)), slot)); }
+    catch (e) { problems.push(`${row.id}: QR content too long to encode`); page.appendChild(place(make({ id: row.id, qr: "" }, bleedFor(slot)), slot)); }
+  });
+
+  if (denseQR.length) problems.push(`Very long link on ${denseQR.slice(0, 5).join(", ")}${denseQR.length > 5 ? ` and ${denseQR.length - 5} more` : ""}: the QR is dense, so test-scan one. A shorter link scans more easily.`);
+  const pages = Math.ceil(cards.length / CARDS_PER_PAGE);
+  const fromImages = rows.filter(r => r.img).length;
+  status.className = problems.length ? "status bad" : "status";
+  status.innerHTML = `<b>${rows.length}</b> card${rows.length === 1 ? "" : "s"} on <b>${pages}</b> page${pages === 1 ? "" : "s"}` +
+    (fromImages ? ` · ${fromImages} using your QR images` : "") +
+    (qrImages.size && fromImages < qrImages.size ? ` · ${qrImages.size - fromImages} QR image(s) matched no ticket` : "") +
+    (problems.length ? `<ul>${problems.map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : "");
+}
+function esc(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+// ---------- wiring ----------
+let t;
+const soon = () => { clearTimeout(t); t = setTimeout(() => { render(); save(); }, 150); };
+["list", "qrRule", "nudgeX", "nudgeY"].forEach(id => $(id).addEventListener("input", soon));
+document.querySelectorAll(".orient button").forEach(b => b.addEventListener("click", () => { $("orient").value = b.dataset.orient; soon(); }));
+["bwBadge", "blankFill", "cropMarks", "outline", "bleed", "rotate"].forEach(id => $(id).addEventListener("change", soon));
+document.querySelectorAll("input[name=design]").forEach(r => r.addEventListener("change", soon));
+
+$("fillRange").addEventListener("click", () => {
+  const p = $("rPrefix").value, a = parseInt($("rStart").value, 10), b = parseInt($("rEnd").value, 10);
+  if (isNaN(a) || isNaN(b) || b < a) { alert("Enter a From number that is less than or equal to To."); return; }
+  if (b - a > 5000) { alert("That range is over 5,000 cards; split it into smaller runs."); return; }
+  const width = String($("rStart").value).length;   // keeps leading zeros like 0001
+  const out = [];
+  for (let n = a; n <= b; n++) out.push(p + String(n).padStart(width, "0"));
+  $("list").value = out.join("\n");
+  soon();
+});
+
+// ---------- CSV import ----------
+// Real exports have headers, extra columns and quoted fields; this reads them properly,
+// picks the ticket and link columns, and writes clean "ticket, link" lines into the list.
+function parseTable(text) {
+  text = text.replace(/^\uFEFF/, "");
+  const first = text.split(/\r?\n/, 1)[0];
+  const count = (ch) => first.split(ch).length - 1;
+  const delim = count("\t") ? "\t" : count(";") > count(",") ? ";" : ",";
+  const rows = [];
+  let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) {
+      if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += ch;
+    } else if (ch === '"' && cell === "") q = true;
+    else if (ch === delim) { row.push(cell); cell = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += ch;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  return rows.map(r => r.map(c => c.trim())).filter(r => r.some(c => c));
+}
+
+const isLink = (v) => /^(https?:\/\/|www\.)\S+$/i.test(v);
+let table = null;   // { head: [...] | null, body: [[...]], name }
+
+function guessColumns(head, body) {
+  const cols = Math.max(...body.map(r => r.length), head ? head.length : 0);
+  const linkShare = (c) => body.filter(r => isLink(r[c] || "")).length / Math.max(1, body.length);
+  let qr = -1, id = -1;
+  if (head) {
+    qr = head.findIndex(h => /qr|url|link|check.?in/i.test(h) && linkShare(head.indexOf(h)) > 0);
+    id = head.findIndex((h, c) => c !== qr && /ticket|badge|attendee.?id|registration|confirmation|\bid\b|number|code/i.test(h) && !/url|link|qr/i.test(h));
+  }
+  if (qr < 0) { let best = 0; for (let c = 0; c < cols; c++) { const sh = linkShare(c); if (sh > best) { best = sh; qr = c; } } }
+  if (id < 0) for (let c = 0; c < cols; c++) if (c !== qr && body.some(r => r[c])) { id = c; break; }
+  return { id, qr };
+}
+
+function importTable(text, name) {
+  const rows = parseTable(text);
+  if (!rows.length) return false;
+  // header = a first row with no links whose next row does have one (or with a known header word)
+  const hasHeader = !rows[0].some(isLink) && (rows.slice(1).some(r => r.some(isLink)) || rows[0].some(c => /ticket|url|link|qr|name|email/i.test(c)));
+  const head = hasHeader ? rows[0] : null;
+  const body = hasHeader ? rows.slice(1) : rows;
+  table = { head, body, name };
+  const { id, qr } = guessColumns(head, body);
+  const cols = Math.max(...rows.map(r => r.length));
+  const label = (c) => (head && head[c] ? head[c] : `Column ${c + 1}`) + (body[0] && body[0][c] ? ` (e.g. ${body[0][c].slice(0, 32)})` : "");
+  const opts = (sel, none) => (none ? `<option value="-1">None (use the QR rule)</option>` : "") +
+    Array.from({ length: cols }, (_, c) => `<option value="${c}"${c === sel ? " selected" : ""}>${esc(label(c))}</option>`).join("");
+  $("colId").innerHTML = opts(id, false);
+  $("colQr").innerHTML = opts(qr, true);
+  $("mapBox").hidden = false;
+  applyMapping();
+  return true;
+}
+
+function applyMapping() {
+  if (!table) return;
+  const id = +$("colId").value, qr = +$("colQr").value;
+  const lines = [];
+  let noLink = 0, noId = 0;
+  for (const r of table.body) {
+    const t = (r[id] || "").trim(), l = qr >= 0 ? (r[qr] || "").trim() : "";
+    if (!t) { noId++; continue; }
+    if (qr >= 0 && !l) noLink++;
+    lines.push(l ? `${t}, ${l}` : t);
+  }
+  $("list").value = lines.join("\n");
+  const notes = [`Loaded <b>${lines.length}</b> tickets${table.name ? " from " + esc(table.name) : ""}.`];
+  if (qr < 0) notes.push("No link column chosen, so every QR uses the QR rule below.");
+  if (noLink) notes.push(`<b>${noLink}</b> row(s) have no link and use the QR rule.`);
+  if (noId) notes.push(`${noId} row(s) with no ticket number were skipped.`);
+  $("mapNote").innerHTML = notes.join(" ");
+  soon();
+}
+$("colId").addEventListener("change", applyMapping);
+$("colQr").addEventListener("change", applyMapping);
+
+$("csvFile").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  if (!importTable(await f.text(), f.name)) alert("That file looks empty.");
+  e.target.value = "";
+});
+
+// Pasting several spreadsheet columns (or a CSV with a header) goes through the same import.
+$("list").addEventListener("paste", (e) => {
+  const text = (e.clipboardData || window.clipboardData).getData("text");
+  const rows = parseTable(text);
+  const wide = rows.length && Math.max(...rows.map(r => r.length)) > 2;
+  const header = rows.length > 1 && !rows[0].some(isLink) && rows[1].some(isLink);
+  if (wide || header) { e.preventDefault(); importTable(text, ""); }
+});
+$("list").addEventListener("input", () => { table = null; $("mapBox").hidden = true; });
+
+$("qrFiles").addEventListener("change", async (e) => {
+  for (const f of e.target.files) {
+    const key = f.name.replace(/\.[^.]+$/, "").trim().toUpperCase();
+    qrImages.set(key, await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(f); }));
+  }
+  e.target.value = "";
+  soon();
+});
+
+$("printBtn").addEventListener("click", () => window.print());
+let testMode = false;
+$("testBtn").addEventListener("click", () => {
+  testMode = true; render();
+  window.print();                                   // blocks until the dialog closes
+  testMode = false; render();
+});
+
+// Remember the list and settings between sessions on this computer.
+function save() {
+  try {
+    localStorage.setItem("ascend-checkin", JSON.stringify({
+      v: 3, list: $("list").value, qrRule: $("qrRule").value,
+      design: document.querySelector("input[name=design]:checked").value,
+      bwBadge: $("bwBadge").checked, blankFill: $("blankFill").checked,
+      cropMarks: $("cropMarks").checked, outline: $("outline").checked, bleed: $("bleed").checked,
+      rotate: $("rotate").value, orient: $("orient").value, nudgeX: $("nudgeX").value, nudgeY: $("nudgeY").value,
+    }));
+  } catch (e) {}
+}
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem("ascend-checkin") || "null");
+    if (!s) return;
+    $("list").value = s.list || ""; $("qrRule").value = s.qrRule || "{id}";
+    const r = document.querySelector(`input[name=design][value=${s.design}]`); if (r) r.checked = true;
+    $("bwBadge").checked = !!s.bwBadge; $("blankFill").checked = !!s.blankFill;
+    if (s.v >= 3) {   // earlier versions were for plain-paper cutting; keep the Avery defaults instead
+      for (const k of ["cropMarks", "outline", "bleed"]) if (k in s) $(k).checked = !!s[k];
+      if (s.rotate) $("rotate").value = s.rotate;
+      if (s.orient) $("orient").value = s.orient;
+      $("nudgeX").value = s.nudgeX || "0"; $("nudgeY").value = s.nudgeY || "0";
+    }
+  } catch (e) {}
+}
+
+// Opened src/template.html by mistake? Its logos and fonts are unfilled placeholders.
+if (EXPO_LOCKUP.includes("{" + "{")) document.body.insertAdjacentHTML("afterbegin",
+  '<div style="background:#b42318;color:#fff;padding:12px 20px;font-weight:600">This is the unbuilt source file, so the logos will not show. Open <u>index.html</u> (one folder up) instead.</div>');
+
+load();
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(render);
+</script>
+</body>
+</html>
