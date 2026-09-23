@@ -19,7 +19,9 @@ Ticket lists never leave your computer. The page makes the QR codes in your brow
    - **Paste:** paste one ticket per line (`E1004`, or `E1004, <QR content>`), or two columns straight from a spreadsheet.
    - **Fill a number range:** e.g. E1001 to E1060. The QR code then follows the **QR content** rule (`{id}` = the ticket number).
 3. If your check-in system gives you ready-made QR pictures, click **Use QR images**. Name each file after its ticket (`E1004.png`).
-4. Click **Print / Save as PDF**. In the dialog, choose **Letter** with the orientation shown (landscape by default), **Margins: None**, **Scale: 100%** or "Actual size", and turn **Background graphics** on.
+4. Click **Download print-ready PDF**, then open the PDF in Acrobat, Preview or any PDF app and print it on Letter paper at **100% / Actual size**. Don't use "Fit", "Shrink oversized pages" or "Scale to fit".
+
+   The page builds the PDF itself at 300 dpi, so it comes out the same whichever browser made it. That matters because Safari ignores a web page's print settings: it adds its own margins and headers and knocks the sheet off-center. **Print from browser** is still there for Chrome and Edge, with Margins: None, Scale: 100% and Background graphics on.
 
 ## The Avery 5392 sheet
 
@@ -40,9 +42,9 @@ Edge options:
 
 ### Lining up with the perforations
 
-Print **Print alignment test sheet** (or [`samples/alignment-test.pdf`](samples/alignment-test.pdf)) on one Avery sheet first. Each insert gets an outline 1/8in inside its perforations, and two rulers should measure exactly **8in** and **9in**.
+Print the **Alignment test PDF** (or [`samples/alignment-test.pdf`](samples/alignment-test.pdf)) on one Avery sheet first, at 100%. Each insert gets an outline 1/8in inside its perforations, and two rulers should measure exactly **8in** and **9in**.
 
-- **Rulers short, or the drift grows toward the back of the sheet:** the printer is scaling the page. Set Scale to 100% / Actual size, and turn off "Fit to page", "Shrink to printable area" and Preview's "Scale to fit". If it persists, try the Portrait view: some drivers scale when they turn a landscape page.
+- **Rulers short, or the drift grows toward the back of the sheet:** the printer is scaling the page. In Acrobat choose **Actual size**. In Preview choose **Scale 100%**, not "Scale to fit". Turn off any "Fit to page" or "Shrink" option in the printer's own settings. If it persists, switch the corner toggle to Portrait and download again: some drivers scale when they turn a landscape page.
 - **Rulers correct, but every gap shifted the same way:** use **Nudge right / Nudge down**. The directions are on the sheet held portrait.
 
 ## Working on it

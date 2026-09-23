@@ -174,10 +174,14 @@ main { padding: 24px; overflow: auto; }
       <p class="hint" style="margin:0 0 0 24px">Only needed for plain paper you cut yourself. Avery 5392 separates at the perforations.</p>
     </fieldset>
 
-    <button class="primary" id="printBtn" type="button">Print / Save as PDF</button>
-    <button id="testBtn" type="button" style="width:100%;margin-top:8px">Print alignment test sheet</button>
-    <p class="hint">Print this on one Avery sheet before the full run. Each insert gets a line 1/8in inside its perforations, and two rulers must measure exactly 8in and 9in. If the gaps are uneven or the rulers come up short, the printer is scaling the page: set Scale to 100% / Actual size and turn off "Fit to page". An even shift in one direction is what the nudge fixes.</p>
-    <p class="hint">In the print dialog: <b>Letter, <span id="orientWord">landscape</span></b>, <b>Margins: None</b>, <b>Scale: 100%</b> (or "Actual size"), and turn on <b>Background graphics</b>. Test one sheet on Avery 5392 stock before the full run.</p>
+    <button class="primary" id="pdfBtn" type="button">Download print-ready PDF</button>
+    <p class="hint">Builds an exact PDF in this browser, the same in Safari, Chrome or Edge. Open it in Preview or Acrobat and print at <b>100% / Actual size</b>, <b>not</b> "Scale to fit", on Letter paper.</p>
+    <div class="btns">
+      <button id="testPdfBtn" type="button" style="flex:1">Alignment test PDF</button>
+      <button id="printBtn" type="button" style="flex:1" title="Chrome and Edge only. Safari adds its own margins and headers, so use the PDF there.">Print from browser</button>
+    </div>
+    <p class="hint">Print the test sheet on one Avery sheet before the full run. Each insert gets a line 1/8in inside its perforations, and two rulers must measure exactly 8in and 9in. If the gaps are uneven or the rulers come up short, the printer is scaling the page: set Scale to 100% / Actual size and turn off "Fit to page". An even shift in one direction is what the nudge fixes.</p>
+    <p class="hint"><b>Print from browser</b> works in Chrome and Edge only: <b>Letter, <span id="orientWord">landscape</span></b>, <b>Margins: None</b>, <b>Scale: 100%</b>, <b>Background graphics</b> on. Safari ignores these settings and adds its own margins, so use the PDF.</p>
     <div id="status" class="status">Add ticket numbers to start.</div>
   </aside>
 
@@ -2715,6 +2719,7 @@ function render() {
   document.querySelectorAll(".orient button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.orient === $("orient").value)));
   // Turn the sheet so the card tops point up: cards facing the sheet's left edge need a clockwise turn.
   const sheetTurn = !land ? "" : topLeft ? "translateX(11in) rotate(90deg)" : "translateY(8.5in) rotate(-90deg)";
+  const sheetTurnPx = !land ? "" : topLeft ? "translate(1056 0) rotate(90)" : "translate(0 816) rotate(-90)";   // same, for the PDF (96 px/in)
   // Which sheet slot (0-5, portrait: 2 across x 3 down) the k-th card goes in, so cards run
   // left to right, top to bottom as the page is viewed.
   const slotFor = (k) => {
@@ -2744,7 +2749,7 @@ function render() {
   let page;
   if (testMode) {
     const pg = document.createElement("div"); pg.className = land ? "page landscape" : "page"; preview.appendChild(pg);
-    page = document.createElement("div"); page.className = "sheet"; page.style.transform = sheetTurn; pg.appendChild(page);
+    page = document.createElement("div"); page.className = "sheet"; page.style.transform = sheetTurn; page.dataset.turn = sheetTurnPx; pg.appendChild(page);
     page.appendChild(testSheet(nx, ny));
     status.className = "status"; status.textContent = "Alignment test sheet";
     return;
@@ -2752,7 +2757,7 @@ function render() {
   cards.forEach((row, i) => {
     if (i % CARDS_PER_PAGE === 0) {
       const pg = document.createElement("div"); pg.className = land ? "page landscape" : "page"; preview.appendChild(pg);
-      page = document.createElement("div"); page.className = "sheet"; page.style.transform = sheetTurn; pg.appendChild(page);
+      page = document.createElement("div"); page.className = "sheet"; page.style.transform = sheetTurn; page.dataset.turn = sheetTurnPx; pg.appendChild(page);
       if ($("cropMarks").checked) page.appendChild(cropMarks(nx, ny));
     }
     const slot = slotFor(i % CARDS_PER_PAGE);
@@ -2902,9 +2907,115 @@ $("qrFiles").addEventListener("change", async (e) => {
 
 $("printBtn").addEventListener("click", () => window.print());
 let testMode = false;
-$("testBtn").addEventListener("click", () => {
+
+// ---------- print-ready PDF ----------
+// Browsers disagree about print margins and page size (Safari ignores @page and adds its own margins and
+// headers), so the PDF is built here instead: each preview page is drawn as one SVG onto a 300 dpi canvas
+// and stored as a full-page JPEG, which prints the same everywhere at 100%.
+const PDF_DPI = 300;
+const FONT_CSS = [...document.querySelector("style").textContent.matchAll(/@font-face\s*{[^}]*}/g)].map(m => m[0]).join("\n");
+
+function pageSvg(pg) {
+  const land = pg.classList.contains("landscape");
+  const W = land ? 1056 : 816, H = land ? 816 : 1056;   // CSS px, 96 per inch
+  const ser = new XMLSerializer();
+  const sheet = pg.querySelector(".sheet");
+  let body = "";
+  for (const node of sheet.children) {
+    const c = node.cloneNode(true);
+    c.removeAttribute("class"); c.removeAttribute("style");
+    if (node.classList.contains("card")) {
+      c.setAttribute("width", 288); c.setAttribute("height", 384); c.setAttribute("overflow", "visible");
+      const x = parseFloat(node.style.left) * 96, y = parseFloat(node.style.top) * 96;
+      const deg = parseFloat((node.style.transform.match(/-?[\d.]+/) || [0])[0]);
+      body += `<g transform="translate(${x + 144} ${y + 192}) rotate(${deg}) translate(-144 -192)">${ser.serializeToString(c)}</g>`;
+    } else {                                              // crop marks / test sheet overlay, 8.5 x 11in
+      c.setAttribute("width", 816); c.setAttribute("height", 1056); c.setAttribute("overflow", "visible");
+      body += ser.serializeToString(c);
+    }
+  }
+  const defs = ser.serializeToString(document.querySelector("svg[aria-hidden] defs"));
+  const px = (v) => Math.round(v * PDF_DPI / 96);
+  return { W, H, cw: px(W), ch: px(H), svg:
+    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${px(W)}" height="${px(H)}" viewBox="0 0 ${W} ${H}">` +
+    `<style>${FONT_CSS}</style>${defs}<rect width="${W}" height="${H}" fill="#FFFFFF"/><g transform="${sheet.dataset.turn || ""}">${body}</g></svg>` };
+}
+
+async function rasterize({ svg, cw, ch }) {
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    await new Promise(r => setTimeout(r, 60));            // let embedded fonts settle before drawing
+    const cv = document.createElement("canvas"); cv.width = cw; cv.height = ch;
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, cw, ch);
+    ctx.drawImage(img, 0, 0, cw, ch);
+    const blob = await new Promise(r => cv.toBlob(r, "image/jpeg", 0.92));
+    return new Uint8Array(await blob.arrayBuffer());
+  } finally { URL.revokeObjectURL(url); }
+}
+
+// Minimal PDF: one full-page JPEG per page.
+function buildPdf(pages) {
+  const enc = new TextEncoder(), chunks = [], offsets = [];
+  let len = 0;
+  const put = (x) => { const b = typeof x === "string" ? enc.encode(x) : x; chunks.push(b); len += b.length; };
+  const obj = (n, head, stream) => {
+    offsets[n] = len;
+    put(`${n} 0 obj\n${head}\n`);
+    if (stream) { put("stream\n"); put(stream); put("\nendstream\n"); }
+    put("endobj\n");
+  };
+  put("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+  const n = pages.length, kids = pages.map((_, i) => `${3 + i * 3} 0 R`).join(" ");
+  obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${n} >>`);
+  pages.forEach((p, i) => {
+    const pn = 3 + i * 3, cn = pn + 1, im = pn + 2;
+    const w = p.W * 0.75, h = p.H * 0.75;                // CSS px -> PDF points
+    const content = enc.encode(`q ${w} 0 0 ${h} 0 0 cm /Im0 Do Q`);
+    obj(pn, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${w} ${h}] /Resources << /XObject << /Im0 ${im} 0 R >> >> /Contents ${cn} 0 R >>`);
+    obj(cn, `<< /Length ${content.length} >>`, content);
+    obj(im, `<< /Type /XObject /Subtype /Image /Width ${p.cw} /Height ${p.ch} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${p.jpeg.length} >>`, p.jpeg);
+  });
+  const xref = len, total = 3 + n * 3;
+  put(`xref\n0 ${total}\n0000000000 65535 f \n`);
+  for (let i = 1; i < total; i++) put(String(offsets[i]).padStart(10, "0") + " 00000 n \n");
+  put(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return new Blob(chunks, { type: "application/pdf" });
+}
+
+async function downloadPdf(button, name) {
+  const label = button.textContent;
+  button.disabled = true;
+  try {
+    const pgs = [...document.querySelectorAll("#preview .page")];
+    if (!pgs.length) { alert("Add ticket numbers first."); return; }
+    const out = [];
+    for (let i = 0; i < pgs.length; i++) {
+      button.textContent = `Building PDF… page ${i + 1} of ${pgs.length}`;
+      const p = pageSvg(pgs[i]);
+      out.push({ ...p, jpeg: await rasterize(p) });
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(buildPdf(out));
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  } catch (e) {
+    alert("Could not build the PDF: " + e.message);
+  } finally { button.disabled = false; button.textContent = label; }
+}
+
+$("pdfBtn").addEventListener("click", () => {
+  const design = document.querySelector("input[name=design]:checked").value === "color" ? "color" : "bw";
+  downloadPdf($("pdfBtn"), `ascend-checkin-cards-${design}.pdf`);
+});
+$("testPdfBtn").addEventListener("click", async () => {
   testMode = true; render();
-  window.print();                                   // blocks until the dialog closes
+  await downloadPdf($("testPdfBtn"), "ascend-alignment-test.pdf");
   testMode = false; render();
 });
 
