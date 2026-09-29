@@ -187,16 +187,16 @@ main { padding: 24px; overflow: auto; }
     <fieldset>
       <legend>Edges</legend>
       <div class="field" style="margin-top:0" data-only="8522">
-        <label for="margin">White margin around the full-color badge (in)</label>
-        <input type="number" id="margin" value="0" min="0" max="0.5" step="0.0625">
+        <label for="margin">White margin on the outer side of the full-color badge (in)</label>
+        <input type="number" id="margin" value="0.2" min="0" max="0.5" step="0.05">
       </div>
-      <p class="hint" style="margin:4px 0 8px" data-only="8522">The sheet has no side margin and most printers can't print the last ~0.17in of the paper, so the dark background would get an uneven white edge. Leave it at 0 to print the badge at its true Avery 8522 size (4.25 × 6in). A value above 0 shrinks the design to sit inside an even white border. The white-background design already keeps its content 0.29in or more from the edges.</p>
+      <p class="hint" style="margin:4px 0 8px" data-only="8522">The sheet has no side margin and most printers can't print the last ~0.17in of the paper, so the dark background would get an uneven white edge. The badges fill the sheet's full width, and most printers can't print the last ~0.17in of the paper. 0.2in (about 0.5cm) keeps the dark background that far in from the paper's left and right edges. It still runs to the centre perforation and the ticket perforation, so each badge needs only its outer side trimmed. Turn on Crop marks to mark that cut. Set 0 for edge-to-edge color with a borderless printer. The white-background design already keeps its content 0.29in or more from the edges.</p>
       <label class="check"><input type="checkbox" id="bleed" checked> Bleed, 0.125in (full color)</label>
       <p class="hint" style="margin:0 0 4px 24px">Runs the dark background 0.125in past the sheet's outer edges. Where two inserts meet, or a badge meets its tickets, it stops at the perforation. On 8522 it applies only when the white margin is 0.</p>
       <label class="check"><input type="checkbox" id="outline"> Card outline</label>
       <p class="hint" style="margin:0 0 4px 24px">The thin border from the design. Off by default: on perforated stock a line that lands slightly off the perforation shows.</p>
       <label class="check"><input type="checkbox" id="cropMarks"> Crop marks</label>
-      <p class="hint" style="margin:0 0 0 24px">Only needed for plain paper you cut yourself. Avery stock separates at the perforations.</p>
+      <p class="hint" style="margin:0 0 0 24px">For cuts the perforations don't make: on Avery 8522 full color, the outer side of each badge where the white margin starts; on plain paper, every edge.</p>
     </fieldset>
 
     <button class="primary" id="pdfBtn" type="button">Download print-ready PDF</button>
@@ -2743,11 +2743,14 @@ function cropMarks5392(nx, ny) {
   markPath(svg, segs);
   return svg;
 }
-function cropMarks8522(nx, ny, below) {
+function cropMarks8522(nx, ny, below, trim) {
   const S = STOCKS["8522"].sheet, svg = el("svg", { class: "marks", viewBox: "0 0 8.5 11" });
   const off = 1 / 16, edge = 1 / 8, top = S.top + ny, bottom = S.top + 9 + ny, x = S.colW + nx;
-  // the sheet has no side margin, so only the centre cut is marked, with ticks at its ends
-  markPath(svg, [[x, edge, x, top - off], [x, bottom + off, x, 11 - edge], [x - 0.2, top - off, x + 0.2, top - off], [x - 0.2, bottom + off, x + 0.2, bottom + off]]);
+  // the centre perforation, with ticks at its ends
+  const segs = [[x, edge, x, top - off], [x, bottom + off, x, 11 - edge], [x - 0.2, top - off, x + 0.2, top - off], [x - 0.2, bottom + off, x + 0.2, bottom + off]];
+  // the one hand cut per badge: its outer side, where the white margin starts
+  if (trim > 0) for (const tx of [trim + nx, 8.5 - trim + nx]) segs.push([tx, edge, tx, top - off], [tx, bottom + off, tx, 11 - edge]);
+  markPath(svg, segs);
   return svg;
 }
 
@@ -2855,7 +2858,7 @@ function render() {
     if (i % perPage === 0) {
       const pg = document.createElement("div"); pg.className = land ? "page landscape" : "page"; preview.appendChild(pg);
       page = document.createElement("div"); page.className = "sheet"; page.style.transform = sheetTurn; page.dataset.turn = sheetTurnPx; pg.appendChild(page);
-      if ($("cropMarks").checked) page.appendChild(key === "5392" ? cropMarks5392(nx, ny) : cropMarks8522(nx, ny, below));
+      if ($("cropMarks").checked) page.appendChild(key === "5392" ? cropMarks5392(nx, ny) : cropMarks8522(nx, ny, below, design === "color" ? margin : 0));
     }
     const slot = slotFor(i % perPage);
     try { page.appendChild(place(make(row, bleedFor(slot)), slot)); }
@@ -2906,19 +2909,25 @@ function layout5392(design, nx, ny, topLeft) {
 }
 function layout8522(design, nx, ny, below, margin) {
   const S = STOCKS["8522"].sheet;
-  const inset = design === "color" ? margin : 0;       // optional white border around the full-color badge
-  const k = Math.min((S.colW - 2 * inset) / S.colW, (S.badgeH - 2 * inset) / S.badgeH);
-  const useBleed = design === "color" && $("bleed").checked && inset === 0;
+  // Full color: keep `inset` of white only on each badge's OUTER side, the paper edge the printer can't reach.
+  // The badges still meet at the centre perforation and at their tickets, so only that one outer side is cut by hand.
+  const inset = design === "color" ? margin : 0;
+  const w = S.colW - inset;                            // width of the dark area
+  const k = w / S.colW;                                // the design shrinks evenly to fit that width...
+  const h = S.badgeH * k;
+  const padH = (S.badgeH - h) / 2 / k * 96;             // ...and the dark background grows top and bottom to fill the 6in (card units)
+  const bleed = design === "color" && $("bleed").checked ? 12 / k : 0;   // 0.125in past the edge that has paper beyond it
   return {
     make: design === "color" ? colorCard8522 : printCard8522,
     land: false, sheetTurn: "", sheetTurnPx: "",        // badges are upright on the portrait sheet
     slotFor: (k2) => k2,                                 // 0 = left badge, 1 = right badge
-    // Bleed only where the badge has paper beyond it; at its tickets and the other badge it stops at the perforation.
-    bleedFor: (slot) => useBleed ? { l: slot === 0 ? 12 : 0, r: slot === 1 ? 12 : 0, t: below ? 12 : 0, b: below ? 0 : 12 } : null,
+    // Where a badge meets the other badge or its tickets the background stops at the perforation (tickets stay blank).
+    bleedFor: (slot) => design !== "color" ? null : {
+      l: inset === 0 && slot === 0 ? bleed : 0, r: inset === 0 && slot === 1 ? bleed : 0,
+      t: padH + (below ? bleed : 0), b: padH + (below ? 0 : bleed) },
     place: (svg, slot) => {
-      const w = S.colW * k, h = S.badgeH * k;
       svg.style.width = w + "in"; svg.style.height = h + "in";
-      svg.style.left = (slot * S.colW + (S.colW - w) / 2 + nx) + "in";
+      svg.style.left = ((slot === 0 ? inset : S.colW) + nx) + "in";   // flush with the centre perforation
       svg.style.top = (S.top + (below ? 0 : 2 * S.ticketH) + (S.badgeH - h) / 2 + ny) + "in";
       return svg;
     },
@@ -3185,7 +3194,7 @@ $("testPdfBtn").addEventListener("click", async () => {
 function save() {
   try {
     localStorage.setItem("ascend-checkin", JSON.stringify({
-      v: 5, list: $("list").value, qrRule: $("qrRule").value,
+      v: 6, list: $("list").value, qrRule: $("qrRule").value,
       design: document.querySelector("input[name=design]:checked").value,
       bwBadge: $("bwBadge").checked, blankFill: $("blankFill").checked,
       cropMarks: $("cropMarks").checked, outline: $("outline").checked, bleed: $("bleed").checked,
@@ -3206,7 +3215,7 @@ function load() {
       if (s.tickets) $("tickets").value = s.tickets;
       if (s.rotate) $("rotate").value = s.rotate;
       if (s.orient) $("orient").value = s.orient;
-      if (s.margin != null) $("margin").value = s.margin;
+      if (s.margin != null && s.v >= 6) $("margin").value = s.margin;   // v5 and earlier saved the old 0 default
       $("nudgeX").value = s.nudgeX || "0"; $("nudgeY").value = s.nudgeY || "0";
     }
   } catch (e) {}

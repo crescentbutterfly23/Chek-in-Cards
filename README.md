@@ -43,8 +43,8 @@ Ticket lists never leave your computer. The page makes the QR codes in your brow
 - **Sheet:** Letter portrait. 2 badges side by side, each 4.25in wide × 6in tall. They fill the full 8.5in width, so the sheet has no side margin.
 - **Tickets:** under each badge are two 4.25 × 1.5in tickets. They're left blank, but their space is reserved.
 - **Position:** following Avery's sheet diagram, each column runs badge 1.5–7.5in from the top, then tickets 7.5–9in and 9–10.5in. That leaves 1.5in of paper above and 0.5in below. **The two tickets sit** switches the tickets above the badge if your stock is laid out that way.
-- **Bleed, 0.125in (full color):** only above the badge and on its outer side. Where it meets its tickets or the other badge it stops at the perforation, so the tickets stay blank.
-- **White margin around the full-color badge:** 0 by default, which prints at the true 4.25 × 6in size. Most printers can't print the last ~0.17in of the paper, so the outer edges of a full-color badge may show a thin white strip. A value above 0 shrinks the design inside an even white border instead.
+- **Full-color edges:** the dark background runs to the centre perforation (the two badges meet there) and down to the ticket perforation, so the tickets stay blank. Above the badge it gets a 0.125in bleed.
+- **White margin on the outer side (full color):** 0.2in (about 0.5cm) by default. The badges fill the sheet's full width, and many printers can't print that close to the paper's left and right edges. The design shrinks about 5% and is centred in the dark area, which stops 0.2in from the paper edge. Each badge then needs just one cut, its outer side; turn on **Crop marks** to mark it. Set 0 for edge-to-edge color on a borderless printer. The white-background design keeps its content more than 0.3in from every edge and stays full size.
 
 ## Both sheet types
 
