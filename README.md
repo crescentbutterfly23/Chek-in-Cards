@@ -42,7 +42,7 @@ Ticket lists never leave your computer. The page makes the QR codes in your brow
 
 - **Sheet:** Letter portrait. 2 badges side by side, each 4.25in wide × 6in tall. They fill the full 8.5in width, so the sheet has no side margin.
 - **Tickets:** under each badge are two 4.25 × 1.5in tickets. They're left blank, but their space is reserved.
-- **Position:** following Avery's sheet diagram, each column runs badge 1.5–7.5in from the top, then tickets 7.5–9in and 9–10.5in. That leaves 1.5in of paper above and 0.5in below. **The two tickets sit** switches the tickets above the badge if your stock is laid out that way.
+- **Position:** each column runs badge 1.62–7.62in from the top, then tickets 7.62–9.12in and 9.12–10.62in. Avery's sheet diagram suggested 1.5in; a test print on real stock came out 0.12in (0.3cm) high, so the layout sits 0.12in lower. **The two tickets sit** switches the tickets above the badge if your stock is laid out that way.
 - **Full-color edges:** the dark background runs to the centre perforation (the two badges meet there) and down to the ticket perforation, so the tickets stay blank. Above the badge it gets a 0.125in bleed.
 - **White margin on the outer side (full color):** 0.2in (about 0.5cm) by default. The badges fill the sheet's full width, and many printers can't print that close to the paper's left and right edges. The design shrinks about 5% and is centred in the dark area, which stops 0.2in from the paper edge. Each badge then needs just one cut, its outer side; turn on **Crop marks** to mark it. Set 0 for edge-to-edge color on a borderless printer. The white-background design keeps its content more than 0.3in from every edge and stays full size.
 
@@ -58,7 +58,7 @@ Before the full run, download the **Alignment test PDF** for your sheet type, or
 - **Rulers short, or the drift grows toward the back of the sheet:** the printer is scaling the page. In Acrobat choose **Actual size**. In Preview choose **Scale 100%**, not "Scale to fit". Turn off any "Fit to page" or "Shrink" option in the printer's own settings. On 5392, if it persists, switch the corner toggle to Portrait and download again: some drivers scale when they turn a landscape page.
 - **Rulers correct, but every gap shifted the same way:** use **Nudge right / Nudge down**. The directions are on the sheet held portrait.
 
-Avery doesn't publish these sheets' margins. The 5392 margins follow from the sheet math, and the 8522 position comes from Avery's sheet diagram. That's why the test sheet matters.
+Avery doesn't publish these sheets' margins. The 5392 margins follow from the sheet math, and the 8522 position comes from Avery's sheet diagram, corrected by a test print on real stock. That's why the test sheet matters.
 
 ## Working on it
 

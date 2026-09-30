@@ -242,9 +242,10 @@ const STOCKS = {
     hint: "Name badge inserts with tickets: 2 badges per sheet. Each badge is 4.25in wide × 6in tall, with two 4.25 × 1.5in tickets in the same column, left blank.",
     lockup: "data:image/png;base64,{{expo-lockup-8522.png}}", lockupBox: { x: 28, y: 32, width: 353, height: 54 },
     badge: "data:image/png;base64,{{ascend-badge-8522.png}}", badgeBox: { x: 81, y: 34, width: 98, height: 125 },
-    // two 4.25in columns edge to edge. Each column = 6in badge + two 1.5in tickets = 9in. Avery's sheet diagram puts
-    // the first perforation 1.5in from the top (badge 1.5-7.5in, tickets 7.5-9 and 9-10.5in): 1.5in above, 0.5in below.
-    sheet: { colW: 4.25, badgeH: 6, ticketH: 1.5, top: 1.5, cols: 2 },
+    // two 4.25in columns edge to edge. Each column = 6in badge + two 1.5in tickets = 9in. Avery's sheet diagram suggested
+    // the first perforation at 1.5in from the top; a test print on real stock (2026-09-30) came out 0.12in high, so the
+    // column starts at 1.62in: badge 1.62-7.62in, tickets 7.62-9.12 and 9.12-10.62in.
+    sheet: { colW: 4.25, badgeH: 6, ticketH: 1.5, top: 1.62, cols: 2 },
   },
 };
 const stockKey = () => (document.querySelector("input[name=stock]:checked") || {}).value || "5392";
